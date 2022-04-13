@@ -1,0 +1,518 @@
+'''This gear system generator script allows user to create gears and manipulate them by using UI.
+  The main idea of the generator is to create gear system along the curve that was drawn with EP Maya Curve Tool
+  by the user. Despite moving gears on the curve, program makes the teeth of the gears match, rotate, disperse
+  randomly in the area and set the driven animation.
+
+'''
+
+
+import maya.cmds as cmds
+import random as random
+import math as math
+from random import shuffle
+
+
+
+def createGear(numTeeth, gearHeight, gearRadius, gearThickness, teethHeight):
+    ''' create one single gear
+
+    numTeeth        : number of teeth for the gear
+    gearHeight        : the height of the gear
+    gearRadius        : the radius of the gear
+    gearThickness    : the thickness of the pipe model
+    teethHeight        : the height of each tooth
+    '''    
+    gear = cmds.polyPipe(sa=numTeeth * 2,h=gearHeight,r=gearRadius,t=gearThickness, name="gear")
+    intStartFace = numTeeth *2 * 2
+    intEndFace = numTeeth *2 * 3 - 1
+
+    ####Deselect all and use for loop to select faces
+    cmds.select(clear=True)
+    for i in range (intStartFace, intEndFace, 2):
+        cmds.select(gear[0] + ".f[%d]" % i, add=True)
+
+    #####Extrude the selected faces
+    cmds.polyExtrudeFacet(ltz=teethHeight*.2,lsx=1)
+    cmds.polyExtrudeFacet(ltz=teethHeight*.8,lsx=0.5)
+    
+    ###Add attributes of gear parts
+    cmds.select(gear[0])
+    cmds.addAttr(longName='teethHeight', shortName = 'th', attributeType='float')
+    cmds.setAttr(gear[0]+'.th', teethHeight)
+    cmds.addAttr(longName='gearRadius', shortName = 'gr', attributeType='float')
+    cmds.addAttr(longName='teeth', shortName = 'tee', attributeType='short')
+    cmds.setAttr(gear[0]+'.gr', gearRadius)
+    cmds.setAttr(gear[0]+'.tee', numTeeth)
+    cmds.delete(constructionHistory=True)
+    
+def modelBigGearProc(numGears, *pArgs):
+    
+    ''' create a series of big gears
+    numGears : the number of gears to be created
+    '''
+    for i in range(numGears):
+        numTeeth = 20
+        gearHeight = 2
+        gearRadius = 20
+        gearThickness = random. uniform(0.1, gearRadius)
+        teethHeight = 4
+        createGear(numTeeth, gearHeight, gearRadius, gearThickness, teethHeight)
+        
+def modelSmallGearProc(numGears, *pArgs):
+    
+    ''' create a series of small gears
+    numGears : the number of gears to be created
+    '''
+    for i in range(numGears):
+        numTeeth = 5
+        gearHeight = 2
+        gearRadius = 5
+        gearThickness = random. uniform(0.1, gearRadius)
+        teethHeight = 4
+        createGear(numTeeth, gearHeight, gearRadius, gearThickness, teethHeight)
+        
+def modelMediumGearProc(numGears, *pArgs):
+    
+    ''' create a series of medium gears
+    numGears : the number of gears to be created
+    '''
+    for i in range(numGears):
+        numTeeth = 10
+        gearHeight = 2
+        gearRadius = 10
+        gearThickness = random. uniform(0.1, gearRadius)
+        teethHeight = 4
+        createGear(numTeeth, gearHeight, gearRadius, gearThickness, teethHeight)
+        
+def modelLargeGearProc(numGears, *pArgs):
+
+    ''' create a series of large gears
+    numGears : the number of gears to be created
+    '''
+    for i in range(numGears):
+        numTeeth = 15
+        gearHeight = 2
+        gearRadius = 15
+        gearThickness = random. uniform(0.1, gearRadius)
+        teethHeight = 4
+        createGear(numTeeth, gearHeight, gearRadius, gearThickness, teethHeight)
+
+def modelRandomGearProc(numGears, *pArgs):
+    
+    ''' create a series of random gears from small, medium, big and large selection
+    
+    
+    numGears       : the number of gears to be created
+    '''
+
+    TeethAndRadius=[5,10,15,20]
+
+    for i in range(numGears):
+        numTeeth = random.choice(TeethAndRadius)
+        gearHeight = 10
+        gearRadius = numTeeth
+        gearThickness = (random. uniform(0.1, gearRadius))
+        teethHeight = 4
+        createGear(numTeeth, gearHeight, gearRadius, gearThickness, teethHeight)
+        
+        
+
+    
+
+def moveGearCurve( *pArgs):
+    
+    '''
+    move created gears on the drawn curve
+    
+    '''
+      
+    listOfGears = cmds.ls('gear*', transforms=True)
+    posList = []
+    count = 0
+    
+    for i in listOfGears:
+        
+        radius = cmds.getAttr(i+'.gr')
+        teethH = cmds.getAttr(i+'.th')
+        posList.append([i, radius+0.5*teethH])
+    
+    pos = cmds.pointOnCurve('curve1', parameter=0.0, position=True)
+    cmds.move(pos[0], pos[1], pos[2], posList[0][0])
+    
+    previousPos = pos
+    previousIndex = 0
+    j=0.0
+    param = 0.0
+    numPos=0
+    
+    while j<=100.0 and previousIndex<len(listOfGears)-1:
+        pos1 = cmds.pointOnCurve('curve1', parameter=param, position=True)
+        param += 0.01
+        
+        dist = math.sqrt((pos1[0]-previousPos[0])*(pos1[0]-previousPos[0])+(pos1[1]-previousPos[1])*(pos1[1]-previousPos[1])+(pos1[2]-previousPos[2])*(pos1[2]-previousPos[2]))
+        if dist>posList[previousIndex][1] + posList[previousIndex+1][1]:
+            cmds.move(pos1[0], pos1[1], pos1[2], posList[previousIndex+1][0])
+            previousPos = pos1
+            previousIndex += 1
+            numPos+=1
+        j+=0.1
+    
+    
+    
+    
+    g = 0
+    ###deleting any extra gears that do not fit on the curve  
+    if len(listOfGears) > numPos:
+        for g in range(numPos, len(listOfGears)):
+            cmds.select( listOfGears[g])
+            cmds.delete()
+            
+            
+            
+def rotation( *pArgs):
+    
+    ''' to manually rotate the gear
+    
+    *pArgs   : holder for any arguments passed from UI
+    '''
+
+    cmds.rotate( 0, '45deg', 0, r=True)
+
+    
+
+            
+def test( *pArgs):
+    
+    ''' calculates positions of each tooth depending on radius size
+    
+    
+    *pArgs   : holder for any arguments passed from UI
+     
+    '''
+    gearIndex=0  
+    listOfGears = cmds.ls('gear*', transforms=True)
+    posList = []
+    count = 0
+    matrix2=[]
+    numTeethList=[]
+
+
+
+    for i in listOfGears:
+
+        ###getting the attributes of the gear
+
+        radius = cmds.getAttr(i + '.gr')
+        numTeeth = cmds.getAttr(i + '.tee')
+
+        count += 1
+        MidlPoint = []
+        matrix = []
+
+        ### querry position of the gear center
+
+        pos = cmds.xform(i, query=True, t=True, ws=True)
+        posList.append(pos)
+
+        SmallGearIndex = 122
+        MediumGearIndex = 242
+        BigGearIndex = 362
+        LargeGearIndex = 482
+
+        ###if it is a small gear
+
+        if radius == 5:
+
+            ###code taken from: https://stackoverflow.com/questions/3546039/find-centre-point-in-autodesk-maya starts here
+
+            while SmallGearIndex < 156:
+                bbx = cmds.xform(listOfGears[gearIndex] + '.e[' + str(SmallGearIndex) + ']', q=True, bb=True, ws=True)
+                centerX = ( bbx[0] + bbx[3]) / 2.0
+                centerZ = ( bbx[2] + bbx[5] ) / 2.0
+                matrix.append( [centerX, 0.0, centerZ] )
+                SmallGearIndex += 8
+
+        ###if it is a medium gear
+
+        if radius == 10:
+
+            while MediumGearIndex < 316:
+                bbx = cmds.xform(listOfGears[gearIndex] + '.e[' + str(MediumGearIndex) + ']', q=True, bb=True, ws=True)  # world space
+                centerX = (bbx[0] + bbx[3]) / 2.0
+                centerZ = (bbx[2] + bbx[5]) / 2.0
+                matrix.append( [centerX, 0.0, centerZ] )
+                MediumGearIndex += 8
+
+        ###if it is a big gear
+
+        if radius == 15:
+
+            while BigGearIndex < 475:
+                bbx = cmds.xform(listOfGears[gearIndex] + '.e[' + str(BigGearIndex) + ']', q=True, bb=True, ws=True)  # world space
+                centerX = (bbx[0] + bbx[3]) / 2.0
+                centerZ = (bbx[2] + bbx[5]) / 2.0
+                matrix.append( [centerX, 0.0, centerZ] )
+                BigGearIndex += 8
+
+        ###if it is a large gear
+
+        if radius == 20:
+
+            while LargeGearIndex < 635:
+                bbx = cmds.xform(listOfGears[gearIndex] + '.e[' + str(LargeGearIndex) + ']', q=True, bb=True, ws=True)  # world space
+                centerX = (bbx[0] + bbx[3]) / 2.0
+                centerZ = (bbx[2] + bbx[5]) / 2.0
+                matrix.append([centerX, 0.0, centerZ])
+                LargeGearIndex += 8
+
+        ###code taken from: https://stackoverflow.com/questions/3546039/find-centre-point-in-autodesk-maya ends here
+
+        gearIndex += 1
+
+        matrix2.append(matrix)
+        numTeethList.append(numTeeth)
+
+        ###calling MiddlePoint function to calculate the middle point between two gears and ditance of each tooth from the middle point
+
+        MiddlePoint(count,  posList,  MidlPoint, numTeeth, matrix2, numTeethList, listOfGears, radius )
+
+
+
+        
+
+def MiddlePoint( count, posList,MidlPoint,numTeeth,matrix2,numTeethList,listOfGears,radius):
+
+
+
+    '''
+       1. calculates middle point between two neighbour gears
+       2. calculates the neighbour gears tooth indexes that have the smallest distance to the middle point
+       3. calculates the distance between those two teeth
+       4. if the distance does not meet the requirement, then the gear is rotated
+       
+    
+    
+    count                    : repetition of iteration through "test" function
+    posList                  : list of each gear center position
+    MidlPoint                : middle point between two gears
+    numTeeth                 : number of teeth on the gear
+    matrix2                  : for storing teeth position matrices of all gears
+    numTeethList             : a list of each gear teeth number
+    listOfGears              : list of the created gears in the outliner
+    radius                   : radius of the gear
+    *pArgs                   : holder for any arguments passed from UI
+        
+    '''
+    
+    MidlPoint = []
+    prevGear = count-2
+    currentGear = count-1
+    distanceList = []
+    distanceList2 = []
+    toothIndex = 0
+    toothIndex2 = 0
+
+
+    ###calculating the middle point between two gears
+    if (count>=2):
+        MidlPointX = ((posList[prevGear][0] + posList[currentGear][0])/2)
+        MidlPointZ = ((posList[prevGear][2] + posList[currentGear][2])/2)
+        MidlPoint.append([MidlPointX, 0.0, MidlPointZ])
+        
+
+
+        ###calculating the distance between each tooth and middle point in the current gear
+        while toothIndex<numTeethList[prevGear]:
+            
+            distX = (matrix2[prevGear][toothIndex][0]-MidlPoint[0][0])**2
+            distZ = (matrix2[prevGear][toothIndex][2]-MidlPoint[0][2])**2
+            distance = (math.sqrt(distX + distZ))
+            distanceList.append(distance)
+            toothIndex += 1
+
+        ###refers to a position that holds a minimum value in distanceList
+        if ( toothIndex == numTeethList [prevGear] ):
+            minIndex = distanceList.index(min(distanceList))
+
+
+
+        ###calculating distance between each tooth and middle point in the previous gear        
+        while toothIndex2 < numTeethList[currentGear]:
+            distX2 = ( matrix2[currentGear][toothIndex2][0] - MidlPoint[0][0] )**2
+            distZ2 = ( matrix2[currentGear][toothIndex2][2] - MidlPoint[0][2] )**2
+            distance2 = ( math.sqrt ( distX2 + distZ2 ) )
+            distanceList2.append(distance2)
+            toothIndex2 += 1
+            
+            
+            ###refers to a position that holds a minimum value in distanceList2
+            if (toothIndex2 == numTeethList[currentGear]):
+                minIndex2 = distanceList2.index(min(distanceList2))
+
+        
+        ###calculating the distance between two nearest teeth
+        mainDistanceX = ( matrix2[prevGear][minIndex][0] - matrix2[currentGear][minIndex2][0] )**2
+        mainDistanceZ = ( matrix2[prevGear][minIndex][2] - matrix2[currentGear][minIndex2][2] )**2
+        print "DISTANCE"
+        mainDistance = (math.sqrt(mainDistanceX + mainDistanceZ))
+        print mainDistance
+        
+        
+
+        k=16.27*mainDistance
+
+        ###if the distance does not meet requirements, the rotate
+        if mainDistance < 5.5:
+            cmds.select(listOfGears[currentGear])
+            cmds.rotate( 0, k, 0, r=True)
+
+
+
+
+    
+def cancelProc(*pArgs):
+    
+    ''' close up the popup window'''
+    print "action is cancelled"
+    cmds.deleteUI("gearSystem")
+
+
+        
+def disperseGearsProc(*pArgs):
+    ''' put all gears at random position
+    
+    *pArgs   : holder for any arguments passed from UI
+    
+    '''
+    listOfGears = cmds.ls('gear*', transforms=True)
+    posList = []
+    count = 0
+    for i in listOfGears:
+        iteration = 0
+        foundNewPos = False
+        radius = cmds.getAttr(i+'.gr')
+        while (not foundNewPos and iteration < 100):
+            foundNewPos = True
+            xPos = random.uniform(-40, 50)
+            zPos = random.uniform(-40, 50)
+            for j in range(count):
+                if (math.sqrt((xPos-posList[j][0])*(xPos-posList[j][0])+(zPos-posList[j][1])*(zPos-posList[j][1]))<(radius+3)+posList[j][2]):
+                    foundNewPos = False
+                    break
+            iteration+=1
+        if iteration < 100:
+            posList.append((xPos,zPos, radius))
+            count+=1
+            cmds.xform(i, t=[xPos, 0, zPos])
+        else:
+            print "can't disperse in the range [-40, 50], please extend this area"
+            return
+
+
+
+
+def setDrivenAnimationProc(animSpeed, *pArgs):
+    
+    '''
+    Function to set keyframes for driven animation. Speed can be chosen from a slider in the UI.
+    
+    animSpeed        : the input from the user referencing angle that is going to be multiplied by 10 in the frame 120
+    *pArgs           : holder for any arguments passed from UI
+    '''
+    
+
+    
+    listOfGears = cmds.ls('gear*', transforms=True)
+    TeethList = []
+    count = 0
+    
+    for i in listOfGears:
+
+        angle = cmds.getAttr(listOfGears[count] + '.rotateY')
+
+        ###setting the speed for the driving gear from user input
+        if count == 0:
+            cmds.select('gear')
+            cmds.setKeyframe(time=0)
+            cmds.setKeyframe(time=120, attribute='rotateY', value = angle + animSpeed * 10)
+            
+
+        ###getting a list of gears teeth number
+        numTeeth1 = cmds.getAttr(i + '.tee')
+        TeethList.append( numTeeth1 )
+        
+
+        ###animating the rest of the gears
+        if count >= 1:
+            
+            animSpeed2 = animSpeed * ( -TeethList[count - 1] / float( TeethList[count] ))
+            cmds.select( listOfGears[count] )
+            cmds.setKeyframe( time=0, query=True )
+            cmds.setKeyframe( time=120, attribute='rotateY', value=angle + animSpeed2 * 10 )
+            animSpeed = animSpeed2
+        count += 1
+
+        
+
+    
+def gearSystemUI():    
+    ''' create the User interface for the modelling of gear, disperse, set driving gear, create animation '''
+    
+    # clear scene
+    cmds.select(all = True)
+    cmds.delete()
+
+    windowID = 'gearSystem'
+    if cmds.window(windowID, exists=True):
+        cmds.deleteUI(windowID)
+
+    winWidth = 400;
+    winHeight = 800;
+    cmds.window(windowID, width=winWidth, height=winHeight)
+
+    cmds.columnLayout( adjustableColumn=True )
+    #adding an icon to the user interface
+    imagePath = cmds.internalVar(upd=True)+"icons/grazu.jpg"
+    cmds.image(w=winWidth, h=100, image = imagePath)
+    cmds.separator(h=35)
+    
+    cmds.setParent('..')
+    cmds.rowColumnLayout(numberOfColumns=1, columnWidth = [(1, winWidth), (2, winWidth/2.0)], columnAttach= [(1, "both", 10), (2, "both", 10)] )
+
+
+    # second section: randomly create a series of gears, disperse without intersection
+    cmds.columnLayout( adjustableColumn=True )
+    cmds.separator(style="in", width=10, height = 20)
+    numGearsControl = cmds.intSliderGrp(label='Number of Gears', minValue=1, maxValue=50, value=15, field=True)
+    cmds.separator(h=20)
+    cmds.button(label = "Create Small Gears", command = lambda *args: modelSmallGearProc(cmds.intSliderGrp(numGearsControl, query=True, value=True)))
+    cmds.button(label = "Create Medium Gears", command = lambda *args: modelMediumGearProc(cmds.intSliderGrp(numGearsControl, query=True, value=True)))
+    cmds.button(label = "Create Big Gears", command = lambda *args: modelLargeGearProc(cmds.intSliderGrp(numGearsControl, query=True, value=True)))
+    cmds.button(label = "Create Large Gears", command = lambda *args: modelBigGearProc(cmds.intSliderGrp(numGearsControl, query=True, value=True)))
+    cmds.button(label = "Create Random Gears", command = lambda *args: modelRandomGearProc(cmds.intSliderGrp(numGearsControl, query=True, value=True)))
+    
+    
+    
+    cmds.separator(h=40)
+    cmds.button(label = "Move on Curve", command = moveGearCurve)
+    cmds.button(label = "Rotate", command = rotation)
+    cmds.button(label = "Match Gears", command = test)
+    cmds.button(label = "Disperse Randomly", command = disperseGearsProc)
+
+    cmds.setParent('..')
+    
+
+
+    cmds.showWindow()
+    
+    # third section: create animation, set driven animation, use the animation of the first selected gear to drive the second gear, make sure you seleted two gears
+    cmds.separator(style="in", width=10, height = 30)
+    animSpeedControl = cmds.intSliderGrp(label='Speed', minValue=1, maxValue=50, value=20, field=True)
+    cmds.separator(style="in", width=10, height = 20)
+    cmds.button(label = "Set Driven Animation", command = lambda *args: setDrivenAnimationProc(cmds.intSliderGrp(animSpeedControl, query=True, value=True)))
+    cmds.separator(style="in", width=10, height = 40)
+    cmds.button(label = "Finished", command = cancelProc)
+    
+# main program, start with the function buildTree()
+if __name__ == "__main__":
+    gearSystemUI()
